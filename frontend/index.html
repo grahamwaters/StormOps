@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Particle Cloud - StormOps</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy-blue-bg: #0F172A;
+            --slate-darker: #334155;
+            --slate-dark: #475569;
+            --slate-medium: #64748B;
+            --slate-light: #94A3B8;
+            --slate-lighter: #CBD5E1;
+            --shadow-color-rgb-values: 0, 0, 0;
+            --shadow-opacity-value: 0.15;
+            --title-yellow-color: #FFFF00;
+            --title-glow-color: #FFFF99;
+            --icon-bg-color: #1E293B; /* Tailwind slate-800 */
+            --icon-hover-bg-color: #334155; /* Tailwind slate-700 */
+            --icon-border-color: #475569; /* Tailwind slate-600 */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--navy-blue-bg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+            padding-top: 20px;
+        }
+        .cloud-container {
+            width: 800px;
+            height: 400px;
+            max-width: 95vw;
+            max-height: 70vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        canvas {
+            display: block;
+            border-radius: 8px;
+        }
+        .icon-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            padding: 0 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+        .icon-button {
+            background-color: var(--icon-bg-color);
+            border: 1px solid var(--icon-border-color);
+            border-radius: 12px;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            padding: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .icon-button:hover {
+            background-color: var(--icon-hover-bg-color);
+            transform: translateY(-3px);
+        }
+        .icon-button svg, .icon-button canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        #tornadoCanvas {
+            background-color: transparent;
+        }
+        /* Animation for radar sweep */
+        @keyframes radarSweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .radar-sweep-line {
+            transform-origin: center; /* SVG center for rotation */
+            animation: radarSweep 4s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="cloud-container">
+        <canvas id="particleCloudCanvas"></canvas>
+    </div>
+
+    <div class="icon-bar">
+        <button class="icon-button" id="iconButtonTornado" aria-label="Tornado Action">
+            <canvas id="tornadoCanvas"></canvas>
+        </button>
+        <button class="icon-button" id="iconButtonCar" aria-label="Armored Car Action">
+            <svg viewBox="0 0 64 64" fill="var(--slate-light)" xmlns="http://www.w3.org/2000/svg">
+                <path d="M58 40H6a2 2 0 00-2 2v10a2 2 0 002 2h4v2a2 2 0 002 2h6a2 2 0 002-2v-2h28v2a2 2 0 002 2h6a2 2 0 002-2v-2h4a2 2 0 002-2V42a2 2 0 00-2-2zM14 54H8v-2h6v2zm42 0h-6v-2h6v2z"></path>
+                <path d="M60 30H4a2 2 0 00-2 2v6h60v-6a2 2 0 00-2-2z"></path>
+                <path d="M56 10H8a4 4 0 00-4 4v14h56V14a4 4 0 00-4-4zM10 22V16h6v6h-6zm10 0V16h6v6h-6zm10 0V16h6v6h-6zm10 0V16h6v6h-6z"></path>
+                <path d="M20 8h24v2H20zM6 38V32a2 2 0 012-2h48a2 2 0 012 2v6H6z"></path>
+            </svg>
+        </button>
+        <button class="icon-button" id="iconButtonComputer" aria-label="Computer Action">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 75L15 20L85 20L85 75L60 85L40 85L15 75Z" fill="var(--slate-dark)" stroke="var(--slate-light)" stroke-width="2"/>
+                <rect x="22" y="27" width="56" height="38" fill="var(--navy-blue-bg)" rx="2"/>
+                <line x1="27" y1="35" x2="73" y2="35" stroke="var(--title-yellow-color)" stroke-width="1.5"/>
+                <line x1="27" y1="40" x2="65" y2="40" stroke="var(--title-yellow-color)" stroke-width="1.5"/>
+                <line x1="27" y1="45" x2="70" y2="45" stroke="var(--title-yellow-color)" stroke-width="1.5"/>
+                <line x1="27" y1="50" x2="55" y2="50" stroke="var(--title-yellow-color)" stroke-width="1.5"/>
+                <line x1="27" y1="55" x2="68" y2="55" stroke="var(--title-yellow-color)" stroke-width="1.5"/>
+                <path d="M40 85L60 85L55 92L45 92L40 85Z" fill="var(--slate-medium)" stroke="var(--slate-light)" stroke-width="1"/>
+            </svg>
+        </button>
+        <button class="icon-button" id="iconButtonPhoto" aria-label="Photo Action">
+             <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="10" y="10" width="44" height="44" rx="4" fill="var(--slate-medium)" stroke="var(--slate-light)" stroke-width="2"/>
+                <path d="M15 48C19.6667 40.6667 27.6 31.2 32 34C36.4 36.8 44.3333 41.3333 49 38" stroke="var(--slate-darker)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="40" cy="24" r="4" fill="var(--slate-darker)"/>
+            </svg>
+        </button>
+        <button class="icon-button" id="iconButtonRadar" aria-label="Radar Scan Action">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" fill="var(--icon-bg-color)" stroke="var(--slate-light)" stroke-width="2"/>
+                <circle cx="50" cy="50" r="30" stroke="var(--slate-medium)" stroke-width="1" stroke-dasharray="2 2"/>
+                <circle cx="50" cy="50" r="15" stroke="var(--slate-medium)" stroke-width="1" stroke-dasharray="2 2"/>
+                {/* Radar sweep line */}
+                <line x1="50" y1="50" x2="50" y2="8" stroke="var(--title-glow-color)" stroke-width="3" class="radar-sweep-line" stroke-linecap="round"/>
+                {/* Target blips */}
+                <circle cx="65" cy="30" r="3" fill="var(--title-yellow-color)"/>
+                <circle cx="30" cy="60" r="2.5" fill="var(--title-yellow-color)"/>
+                <circle cx="55" cy="70" r="2" fill="var(--title-yellow-color)"/>
+            </svg>
+        </button>
+    </div>
+
+    <script>
+        // --- Base Canvas Size (for parameter scaling) ---
+        const CANVAS_BASE_WIDTH = 800;
+        const CANVAS_BASE_HEIGHT = 400;
+
+        // --- Title Parameters ---
+        const TITLE_TEXT = "StormOps";
+        const TITLE_FONT_SIZE = 50;
+        const TITLE_FONT_FAMILY = "Orbitron";
+        const TITLE_Y_OFFSET = 20;
+        const TITLE_GLOW_BLUR = 10;
+
+        // --- Cloud Evolution & Motion Parameters ---
+        const EVOLUTION_SPEED = 0.0085;
+        const PARTICLE_DRIFT_AMOUNT = 0.09;
+        const COHESIVE_FORCE_STRENGTH = 0.015;
+        const CYCLONIC_ROTATION_STRENGTH = 0.09;
+
+        // --- Cloud Shape Parameters ---
+        const CLOUD_BASE_Y_RATIO = 0.55;
+        const CLOUD_HORIZONTAL_SPREAD = 0.5;
+        const PEAK_AVERAGE_HEIGHT = CANVAS_BASE_HEIGHT * 0.15;
+        const PEAK_HEIGHT_RANDOMNESS = CANVAS_BASE_HEIGHT * 0.15;
+        const PEAK_AVERAGE_WIDTH = CANVAS_BASE_WIDTH * 0.12;
+        const PEAK_WIDTH_RANDOMNESS = CANVAS_BASE_WIDTH * 0.08;
+        const PEAK_HORIZONTAL_SHIFT_RANGE = CANVAS_BASE_WIDTH * 0.1;
+
+        // --- Particle Appearance ---
+        const NUM_PARTICLES = 900;
+        const PARTICLE_BASE_SIZE = 10;
+        const PARTICLE_SIZE_VARIATION = 15;
+        const cloudColorsRgb = [
+            [51, 65, 85],   [71, 85, 105], [100, 116, 139],
+            [148, 163, 184], [203, 213, 225]
+        ];
+
+        // --- Lightning Parameters ---
+        const TARGET_FPS = 60;
+        const STRIKE_INTERVAL_SECONDS = 30;
+        const LIGHTNING_CHANCE_PER_FRAME = 1 / (STRIKE_INTERVAL_SECONDS * TARGET_FPS);
+        const LIGHTNING_DURATION_FRAMES_MIN = 5;
+        const LIGHTNING_DURATION_FRAMES_MAX = 15;
+        const LIGHTNING_COLOR_RGB = [148, 83, 201];
+        const LIGHTNING_GLOW_COLOR_RGB = [112, 85, 209];
+        const LIGHTNING_GLOW_BLUR = 18;
+        const LIGHTNING_MAX_SEGMENTS = 6;
+        const LIGHTNING_SEGMENT_LENGTH_AVG = 20;
+        const LIGHTNING_SEGMENT_LENGTH_VAR = 10;
+        const LIGHTNING_JAGGEDNESS = 0.5;
+        const LIGHTNING_THICKNESS_AVG = 2.5;
+        const LIGHTNING_THICKNESS_VAR = 1.5;
+        const LIGHTNING_BRANCH_CHANCE = 0.25;
+        const LIGHTNING_MAX_BRANCHES_PER_NODE = 1;
+        const LIGHTNING_BRANCH_MAX_SEGMENTS_FACTOR = 0.5;
+        const LIGHTNING_BRANCH_THICKNESS_FACTOR = 0.5;
+
+        // --- Tornado Icon Parameters ---
+        const TORNADO_CLOUD_PARTICLES = 30; // Increased
+        const TORNADO_PARTICLES = 50; // Increased
+        const TORNADO_RADIUS_TOP = 20; // Radius at the cloud base
+        const TORNADO_RADIUS_BOTTOM_FACTOR = 0.1; // How narrow the tip is relative to top
+        const TORNADO_HEIGHT = 40; // Slightly taller
+        const TORNADO_SPIN_SPEED = 0.12; // Slightly faster
+        const TORNADO_PARTICLE_BASE_SIZE = 2.5; // Base size for tornado particles
+        const TORNADO_PARTICLE_SIZE_VAR = 1.5;
+        const TORNADO_CLOUD_COLOR_RGB = [148, 163, 184];
+        const TORNADO_FUNNEL_COLOR_RGB = [100, 116, 139];
+
+
+        // --- Global State ---
+        let canvas, ctx;
+        let particles = [];
+        let cloudParameters = { numPeaks: 1, peaks: [] };
+        let activeLightningBolts = [];
+        let currentTime = 0;
+        let actualWidth, actualHeight;
+        let cloudGlobalCenterX = CANVAS_BASE_WIDTH / 2;
+        let cloudGlobalCenterY = CANVAS_BASE_HEIGHT * CLOUD_BASE_Y_RATIO;
+
+        let tornadoCanvas, tornadoCtx;
+        let tornadoCloudParticles = [];
+        let tornadoFunnelParticles = [];
+        let tornadoTime = 0;
+
+
+        // --- Mathematical Helper ---
+        function gaussian(x, mean, stdDev, amplitude) {
+            if (stdDev <= 0) return x === mean ? amplitude : 0;
+            return amplitude * Math.exp(-Math.pow(x - mean, 2) / (2 * Math.pow(stdDev, 2)));
+        }
+
+        // --- Particle Object (Main Cloud) ---
+        function createParticle(x, y, size, colorRgb, opacity, initialProfileHeightRatio) {
+            return {
+                x: x, y: y, initialX: x, initialY: y,
+                size: size, colorRgb: colorRgb, opacity: opacity,
+                driftPhase: Math.random() * Math.PI * 2,
+                initialProfileHeightRatio: initialProfileHeightRatio
+            };
+        }
+
+        // --- Lightning Bolt Object ---
+        function createLightningBolt(startX, startY, numSegments, thickness, initialAngle, isBranch = false) {
+            const segments = [{ x: startX, y: startY }];
+            let currentAngle = initialAngle;
+            for (let i = 0; i < numSegments; i++) {
+                const prevPoint = segments[segments.length - 1];
+                const length = LIGHTNING_SEGMENT_LENGTH_AVG + (Math.random() - 0.5) * 2 * LIGHTNING_SEGMENT_LENGTH_VAR;
+                currentAngle += (Math.random() - 0.5) * Math.PI * LIGHTNING_JAGGEDNESS;
+                const nextX = prevPoint.x + Math.cos(currentAngle) * length;
+                const nextY = prevPoint.y + Math.sin(currentAngle) * length;
+                segments.push({ x: nextX, y: nextY });
+                if (!isBranch && Math.random() < LIGHTNING_BRANCH_CHANCE && i < numSegments - 1 && i > 0) {
+                    for(let b=0; b < LIGHTNING_MAX_BRANCHES_PER_NODE; b++){
+                        const branchAngle = currentAngle + (Math.random() - 0.5) * Math.PI / 1.5;
+                        const branchSegments = Math.max(1,Math.floor(numSegments * LIGHTNING_BRANCH_MAX_SEGMENTS_FACTOR));
+                        const branchThickness = Math.max(1, thickness * LIGHTNING_BRANCH_THICKNESS_FACTOR);
+                        if (branchSegments > 0) {
+                            const branchBoltData = createLightningBolt(prevPoint.x, prevPoint.y, branchSegments, branchThickness, branchAngle, true);
+                            activeLightningBolts.push({
+                                ...branchBoltData,
+                                framesLeft: Math.floor(Math.random() * (LIGHTNING_DURATION_FRAMES_MAX - LIGHTNING_DURATION_FRAMES_MIN)) + LIGHTNING_DURATION_FRAMES_MIN,
+                                opacity: 0, maxOpacity: 0.7
+                            });
+                        }
+                    }
+                }
+            }
+            return { segments, thickness };
+        }
+
+        // --- Cloud & Particle Logic (Main Cloud) ---
+        function initializeCloudParameters() {
+            cloudParameters.numPeaks = Math.floor(Math.random() * 2) + 2;
+            cloudParameters.peaks = [];
+            const peakSpacing = (actualWidth * CLOUD_HORIZONTAL_SPREAD) / (cloudParameters.numPeaks + 0.5);
+            for (let i = 0; i < cloudParameters.numPeaks; i++) {
+                const initialXPos = (actualWidth * (1 - CLOUD_HORIZONTAL_SPREAD) / 2) + peakSpacing * (i + 1) + (Math.random() - 0.5) * peakSpacing * 0.3;
+                cloudParameters.peaks.push({
+                    initialAmplitude: PEAK_AVERAGE_HEIGHT + (Math.random() - 0.5) * PEAK_HEIGHT_RANDOMNESS,
+                    initialWidth: PEAK_AVERAGE_WIDTH + (Math.random() - 0.5) * PEAK_WIDTH_RANDOMNESS,
+                    initialX: initialXPos, currentAmplitude: 0, currentWidth: 0, currentX: 0,
+                    ampSpeed: (Math.random()*0.15+0.08)*(Math.random()<0.5?1:-1), widthSpeed: (Math.random()*0.08+0.04)*(Math.random()<0.5?1:-1), xSpeed: (Math.random()*0.04+0.015)*(Math.random()<0.5?1:-1),
+                });
+            }
+        }
+
+        function getCloudProfileHeightAtX(x, time) {
+            let totalHeight = 0, weightedPeakSumX = 0, totalAmplitudeSum = 0, activePeaks = 0;
+            cloudParameters.peaks.forEach((peak, index) => {
+                peak.currentAmplitude = peak.initialAmplitude + Math.sin(time*peak.ampSpeed + index*Math.PI/cloudParameters.numPeaks)*PEAK_HEIGHT_RANDOMNESS*0.6;
+                peak.currentWidth = Math.max(PEAK_AVERAGE_WIDTH*0.3, peak.initialWidth + Math.cos(time*peak.widthSpeed + index*Math.PI/cloudParameters.numPeaks)*PEAK_WIDTH_RANDOMNESS*0.6);
+                peak.currentX = peak.initialX + Math.sin(time*peak.xSpeed + index*Math.PI/cloudParameters.numPeaks)*PEAK_HORIZONTAL_SHIFT_RANGE*0.6;
+                if (peak.currentAmplitude > 5) { weightedPeakSumX += peak.currentX*peak.currentAmplitude; totalAmplitudeSum += peak.currentAmplitude; activePeaks++; }
+                totalHeight += gaussian(x, peak.currentX, peak.currentWidth, peak.currentAmplitude);
+            });
+            if (activePeaks > 0 && totalAmplitudeSum > 0) {
+                cloudGlobalCenterX = weightedPeakSumX / totalAmplitudeSum;
+                cloudGlobalCenterY = actualHeight*CLOUD_BASE_Y_RATIO - (totalAmplitudeSum/activePeaks)*0.5;
+            } else { cloudGlobalCenterX = actualWidth/2; cloudGlobalCenterY = actualHeight*CLOUD_BASE_Y_RATIO; }
+            return Math.max(0, totalHeight);
+        }
+
+        function initializeParticles() {
+            particles = [];
+            const cloudBaseYCanvas = actualHeight*CLOUD_BASE_Y_RATIO, cloudOverallWidthCanvas = actualWidth*CLOUD_HORIZONTAL_SPREAD, startXCanvas = (actualWidth-cloudOverallWidthCanvas)/2;
+            for (let i = 0; i < NUM_PARTICLES; i++) {
+                const px = startXCanvas + Math.random()*cloudOverallWidthCanvas, initialProfileHeightAtPx = getCloudProfileHeightAtX(px, 0);
+                if (initialProfileHeightAtPx < 10 && Math.random() > 0.1) continue;
+                const randomYFactor = Math.pow(Math.random(),0.7), py = cloudBaseYCanvas - (initialProfileHeightAtPx*randomYFactor) + (Math.random()-0.5)*initialProfileHeightAtPx*0.4;
+                const initialYRatio = initialProfileHeightAtPx>0 ? (cloudBaseYCanvas-py)/initialProfileHeightAtPx : 0.5;
+                const sizeFactor = 0.5+(1-randomYFactor)*0.8, psize = PARTICLE_BASE_SIZE+Math.random()*PARTICLE_SIZE_VARIATION*sizeFactor;
+                const normalizedPy = (cloudBaseYCanvas-py)/(PEAK_AVERAGE_HEIGHT*1.5);
+                let colorIndex = Math.floor(normalizedPy*(cloudColorsRgb.length-1)*1.2); colorIndex = Math.max(0,Math.min(cloudColorsRgb.length-1,colorIndex+Math.floor(Math.random()*2-1) ));
+                const pcolorRgb = cloudColorsRgb[colorIndex], popacity = Math.max(0.05,Math.min(0.5,(0.1+(psize/(PARTICLE_BASE_SIZE+PARTICLE_SIZE_VARIATION))*0.3)*(0.5+normalizedPy*0.5) ));
+                particles.push(createParticle(px,py,psize,pcolorRgb,popacity,initialYRatio));
+            }
+        }
+
+        function drawTitle() {
+            ctx.font = `bold ${TITLE_FONT_SIZE}px ${TITLE_FONT_FAMILY}`;
+            const titleColor = getComputedStyle(document.documentElement).getPropertyValue('--title-yellow-color').trim();
+            const glowColor = getComputedStyle(document.documentElement).getPropertyValue('--title-glow-color').trim();
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            const titleX = actualWidth/2, titleY = cloudGlobalCenterY + TITLE_Y_OFFSET;
+            ctx.shadowColor = glowColor; ctx.shadowBlur = TITLE_GLOW_BLUR; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+            ctx.fillStyle = glowColor; ctx.fillText(TITLE_TEXT, titleX, titleY);
+            ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+            ctx.fillStyle = titleColor; ctx.fillText(TITLE_TEXT, titleX, titleY);
+            ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+        }
+
+        function tryGenerateLightning() {
+            if (Math.random() < LIGHTNING_CHANCE_PER_FRAME) {
+                const startX = cloudGlobalCenterX + (Math.random() - 0.5) * PEAK_AVERAGE_WIDTH * 1.5;
+                const startY = cloudGlobalCenterY - (Math.random() - 0.5) * PEAK_AVERAGE_HEIGHT * 1.2;
+                const initialAngle = Math.random() * Math.PI * 2;
+                const numSegments = Math.floor(Math.random() * (LIGHTNING_MAX_SEGMENTS * 0.6)) + Math.floor(LIGHTNING_MAX_SEGMENTS * 0.4) ;
+                const thickness = LIGHTNING_THICKNESS_AVG + (Math.random() - 0.5) * LIGHTNING_THICKNESS_VAR;
+                const mainBoltData = createLightningBolt(startX, startY, numSegments, thickness, initialAngle);
+                activeLightningBolts.push({ ...mainBoltData,
+                    framesLeft: Math.floor(Math.random()*(LIGHTNING_DURATION_FRAMES_MAX-LIGHTNING_DURATION_FRAMES_MIN))+LIGHTNING_DURATION_FRAMES_MIN,
+                    opacity: 0, maxOpacity: 0.9
+                });
+            }
+        }
+
+        function drawAllLightning() {
+            activeLightningBolts.forEach(bolt => {
+                if (!bolt.initialFramesLeft) bolt.initialFramesLeft = bolt.framesLeft;
+                const fadeInFrames = 3; const fadeOutFrames = 5;
+                if (bolt.framesLeft > bolt.initialFramesLeft - fadeInFrames) { bolt.opacity = Math.min(bolt.maxOpacity, bolt.opacity + bolt.maxOpacity / fadeInFrames); }
+                else if (bolt.framesLeft < fadeOutFrames) { bolt.opacity = Math.max(0, bolt.opacity - bolt.maxOpacity / fadeOutFrames); }
+                else { bolt.opacity = bolt.maxOpacity; }
+                if (bolt.opacity <= 0) return;
+                ctx.lineCap = "round"; ctx.lineJoin = "round";
+                ctx.beginPath(); ctx.moveTo(bolt.segments[0].x, bolt.segments[0].y);
+                for (let i=1; i<bolt.segments.length; i++) { ctx.lineTo(bolt.segments[i].x, bolt.segments[i].y); }
+                ctx.lineWidth = bolt.thickness * 3;
+                ctx.strokeStyle = `rgba(${LIGHTNING_GLOW_COLOR_RGB.join(',')}, ${bolt.opacity*0.6})`;
+                ctx.shadowColor = `rgba(${LIGHTNING_GLOW_COLOR_RGB.join(',')}, ${bolt.opacity*0.7})`;
+                ctx.shadowBlur = LIGHTNING_GLOW_BLUR; ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(bolt.segments[0].x, bolt.segments[0].y);
+                for (let i=1; i<bolt.segments.length; i++) { ctx.lineTo(bolt.segments[i].x, bolt.segments[i].y); }
+                ctx.lineWidth = bolt.thickness; ctx.strokeStyle = `rgba(${LIGHTNING_COLOR_RGB.join(',')}, ${bolt.opacity})`;
+                ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.stroke();
+            });
+            activeLightningBolts = activeLightningBolts.filter(bolt => { bolt.framesLeft--; return bolt.framesLeft > 0 && bolt.opacity > 0; });
+        }
+
+        function updateAndDrawParticles() {
+            ctx.clearRect(0,0,actualWidth,actualHeight); getCloudProfileHeightAtX(actualWidth/2,currentTime); drawTitle();
+            const shRgb = getComputedStyle(document.documentElement).getPropertyValue('--shadow-color-rgb-values').trim();
+            const shOp = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--shadow-opacity-value'));
+            const shGrad = ctx.createRadialGradient(cloudGlobalCenterX,cloudGlobalCenterY+PEAK_AVERAGE_HEIGHT*0.3,PEAK_AVERAGE_WIDTH*0.2,cloudGlobalCenterX,cloudGlobalCenterY+PEAK_AVERAGE_HEIGHT*0.3,PEAK_AVERAGE_WIDTH*1.5);
+            shGrad.addColorStop(0,`rgba(${shRgb},${shOp*0.7})`); shGrad.addColorStop(1,`rgba(${shRgb},0)`);
+            ctx.fillStyle=shGrad; ctx.fillRect(0,0,actualWidth,actualHeight);
+            tryGenerateLightning(); drawAllLightning();
+            particles.forEach((p)=>{
+                const curProfH = getCloudProfileHeightAtX(p.initialX,currentTime);
+                if(curProfH<5&&p.opacity>0.01){p.opacity-=0.01;}else if(curProfH>=5&&p.opacity<0.05&&Math.random()<0.01){p.opacity=Math.max(0.05,Math.min(0.5,(0.1+(p.size/(PARTICLE_BASE_SIZE+PARTICLE_SIZE_VARIATION))*0.3)));}
+                let tY=actualHeight*CLOUD_BASE_Y_RATIO-(curProfH*p.initialProfileHeightRatio),oX=0,oY=0;
+                if(COHESIVE_FORCE_STRENGTH>0){const dX=cloudGlobalCenterX-p.x,dY=cloudGlobalCenterY-p.y;oX+=dX*COHESIVE_FORCE_STRENGTH;oY+=dY*COHESIVE_FORCE_STRENGTH;}
+                if(CYCLONIC_ROTATION_STRENGTH>0){const rX=p.x-cloudGlobalCenterX,rY=p.y-cloudGlobalCenterY;oX+=-rY*CYCLONIC_ROTATION_STRENGTH;oY+=rX*CYCLONIC_ROTATION_STRENGTH;}
+                oX+=Math.sin(currentTime*0.5+p.driftPhase)*PARTICLE_DRIFT_AMOUNT*(p.size/PARTICLE_BASE_SIZE); oY+=Math.cos(currentTime*0.3+p.driftPhase)*PARTICLE_DRIFT_AMOUNT*(p.size/PARTICLE_BASE_SIZE)*0.5;
+                p.x=p.initialX+oX;p.y=tY+oY; if(p.opacity<=0.01)return; ctx.beginPath();
+                const grad=ctx.createRadialGradient(p.x,p.y,p.size*0.1,p.x,p.y,p.size);grad.addColorStop(0,`rgba(${p.colorRgb.join(',')},${p.opacity})`);grad.addColorStop(1,`rgba(${p.colorRgb.join(',')},0)`);
+                ctx.fillStyle=grad;ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+            });
+        }
+
+        // --- Tornado Icon Animation ---
+        function initializeTornadoIcon() {
+            tornadoCloudParticles = [];
+            tornadoFunnelParticles = [];
+            if (!tornadoCanvas) return; // Guard against missing canvas
+            const dpr = window.devicePixelRatio || 1;
+            const canvasWidth = tornadoCanvas.width / dpr;
+            const canvasHeight = tornadoCanvas.height / dpr;
+
+            // Cloud for tornado
+            for (let i = 0; i < TORNADO_CLOUD_PARTICLES; i++) {
+                tornadoCloudParticles.push({
+                    x: Math.random() * canvasWidth * 0.7 + canvasWidth * 0.15, // Wider, more centered cloud
+                    y: Math.random() * canvasHeight * 0.25 + canvasHeight * 0.05, // Slightly lower cloud base
+                    size: Math.random() * 6 + 4, // Larger cloud particles
+                    opacity: Math.random() * 0.4 + 0.5 // More opaque
+                });
+            }
+            // Funnel particles
+            for (let i = 0; i < TORNADO_PARTICLES; i++) {
+                const yRatio = i / TORNADO_PARTICLES;
+                tornadoFunnelParticles.push({
+                    yRatio: yRatio,
+                    angle: Math.random() * Math.PI * 2,
+                    size: TORNADO_PARTICLE_BASE_SIZE + Math.random() * TORNADO_PARTICLE_SIZE_VAR, // Use new size params
+                    opacity: Math.random() * 0.5 + 0.4 // More opaque funnel
+                });
+            }
+        }
+
+        function drawTornadoIcon() {
+            if (!tornadoCtx || !tornadoCanvas) return;
+            const dpr = window.devicePixelRatio || 1;
+            const canvasWidth = tornadoCanvas.width / dpr;
+            const canvasHeight = tornadoCanvas.height / dpr;
+
+            tornadoCtx.clearRect(0, 0, tornadoCanvas.width, tornadoCanvas.height);
+
+            // Draw cloud particles with radial gradient
+            tornadoCloudParticles.forEach(p => {
+                tornadoCtx.beginPath();
+                const gradient = tornadoCtx.createRadialGradient(p.x, p.y, p.size * 0.1, p.x, p.y, p.size);
+                gradient.addColorStop(0, `rgba(${TORNADO_CLOUD_COLOR_RGB.join(',')}, ${p.opacity})`);
+                gradient.addColorStop(1, `rgba(${TORNADO_CLOUD_COLOR_RGB.join(',')}, 0)`);
+                tornadoCtx.fillStyle = gradient;
+                tornadoCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                tornadoCtx.fill();
+            });
+
+            // Draw tornado funnel particles with radial gradient
+            const cloudBaseY = canvasHeight * 0.3;
+            const tornadoTipX = canvasWidth / 2;
+
+            tornadoFunnelParticles.forEach(p => {
+                const currentY = cloudBaseY + p.yRatio * TORNADO_HEIGHT;
+                // Funnel shape: wider at top, tapers to a point
+                const funnelWidthAtY = TORNADO_RADIUS_TOP * (1 - p.yRatio * (1 - TORNADO_RADIUS_BOTTOM_FACTOR));
+
+                p.angle += TORNADO_SPIN_SPEED * (1 + p.yRatio * 0.5); // Spin speed can vary with height
+
+                const x = tornadoTipX + Math.cos(p.angle) * funnelWidthAtY;
+                // Add some random horizontal sway to the particle within the funnel's radius
+                const swayX = (Math.random() - 0.5) * funnelWidthAtY * 0.3;
+                const particleDrawSize = p.size * (1 - p.yRatio * 0.6); // Particles smaller towards the tip
+
+                tornadoCtx.beginPath();
+                const gradient = tornadoCtx.createRadialGradient(x + swayX, currentY, particleDrawSize * 0.1, x + swayX, currentY, particleDrawSize);
+                gradient.addColorStop(0, `rgba(${TORNADO_FUNNEL_COLOR_RGB.join(',')}, ${p.opacity})`);
+                gradient.addColorStop(1, `rgba(${TORNADO_FUNNEL_COLOR_RGB.join(',')}, 0)`);
+                tornadoCtx.fillStyle = gradient;
+                tornadoCtx.arc(x + swayX, currentY, particleDrawSize, 0, Math.PI * 2);
+                tornadoCtx.fill();
+            });
+            tornadoTime += 0.01; // General time for any other subtle animations if needed
+        }
+
+
+        // --- Main Animation Loop ---
+        function animationLoop() {
+            currentTime+=EVOLUTION_SPEED;
+            updateAndDrawParticles();
+            if (tornadoCtx) drawTornadoIcon();
+            requestAnimationFrame(animationLoop);
+        }
+
+        // --- Resize Handling ---
+        function resizeCanvas() {
+            const cont=document.querySelector('.cloud-container');
+            const dpr=window.devicePixelRatio||1;
+            actualWidth=cont.clientWidth; actualHeight=cont.clientHeight;
+            canvas.width=actualWidth*dpr; canvas.height=actualHeight*dpr;
+            canvas.style.width=actualWidth+'px'; canvas.style.height=actualHeight+'px';
+            ctx.scale(dpr,dpr);
+
+            if (tornadoCanvas) {
+                const iconButton = document.getElementById('iconButtonTornado');
+                if (iconButton) { // Ensure button exists
+                    const tornadoRect = iconButton.getBoundingClientRect();
+                    tornadoCanvas.width = tornadoRect.width * dpr;
+                    tornadoCanvas.height = tornadoRect.height * dpr;
+                    tornadoCanvas.style.width = tornadoRect.width + 'px';
+                    tornadoCanvas.style.height = tornadoRect.height + 'px';
+                    if (tornadoCtx) tornadoCtx.scale(dpr, dpr);
+                    initializeTornadoIcon();
+                }
+            }
+            initializeCloudParameters(); initializeParticles();
+        }
+
+        // --- Initialization ---
+        document.addEventListener("DOMContentLoaded",()=>{
+            canvas=document.getElementById("particleCloudCanvas");
+            ctx=canvas.getContext("2d");
+            if(!canvas||!ctx){console.error("Main canvas setup failed!");return;}
+
+            tornadoCanvas = document.getElementById('tornadoCanvas');
+            if (tornadoCanvas) {
+                tornadoCtx = tornadoCanvas.getContext('2d');
+                if (!tornadoCtx) console.error("Tornado canvas context failed!");
+            } else {
+                console.error("Tornado canvas element not found!");
+            }
+
+            resizeCanvas();
+            window.addEventListener('resize',resizeCanvas);
+
+            document.getElementById('iconButtonTornado')?.addEventListener('click', () => console.log('Tornado icon clicked!'));
+            document.getElementById('iconButtonCar')?.addEventListener('click', () => console.log('Armored car icon clicked!'));
+            document.getElementById('iconButtonComputer')?.addEventListener('click', () => console.log('Computer icon clicked!'));
+            document.getElementById('iconButtonPhoto')?.addEventListener('click', () => console.log('Photo icon clicked!'));
+            document.getElementById('iconButtonRadar')?.addEventListener('click', () => console.log('Radar icon clicked!')); // Updated ID
+
+            animationLoop();
+            console.log("Dynamic Particle Cloud with Enhanced Icons Loaded!");
+        });
+    </script>
+</body>
+</html>
