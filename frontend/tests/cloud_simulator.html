@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atmospheric Cloud Simulator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #000033; /* Navy Blue background for page */
+            color: #e0e0e0;
+            min-height: 100vh;
+            box-sizing: border-box;
+            transition: padding 0.3s ease;
+        }
+
+        body.fullscreen-active {
+            padding: 0;
+            overflow: hidden;
+        }
+
+        header, #controls-container {
+            width: 100%;
+            max-width: 700px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+            visibility: visible;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        body.fullscreen-active header,
+        body.fullscreen-active #controls-container {
+            opacity: 0;
+            transform: translateY(-20px);
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        header h1 {
+            font-weight: 300;
+            font-size: 2.5em;
+            color: #66aaff; /* Lighter blue for title */
+            margin-bottom: 10px;
+        }
+
+        #controls {
+            background-color: #00004d; /* Darker Navy for controls */
+            padding: 25px 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+            margin: 0 auto;
+        }
+
+        .file-input-wrapper {
+            position: relative; /* Establishes stacking context */
+            overflow: hidden;
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 0.9em;
+            background-color: #0055cc;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-weight: 400;
+            width: auto;
+            text-align: center;
+            z-index: 1; /* Explicitly set stacking order */
+        }
+        .file-input-wrapper:hover {
+            background-color: #0044aa;
+        }
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            font-size: 100px;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+
+        #fileName {
+            font-size: 0.9em;
+            color: #aaa;
+            margin-top: 5px;
+            display: block;
+            text-align: center;
+            min-height: 1.2em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            position: relative; /* Important for z-index to take effect */
+            z-index: 2;         /* Higher z-index to be on top */
+        }
+
+        #processButton, #saveSimButton {
+            padding: 10px 25px;
+            font-size: 1em;
+            font-weight: 700;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        #processButton { background-color: #28a745; }
+        #processButton:hover { background-color: #1e7e34; }
+        #saveSimButton { background-color: #ff8c00; display: none; /* Hidden initially */ }
+        #saveSimButton:hover { background-color: #cc7000; }
+
+        #processButton:active, #saveSimButton:active { transform: scale(0.98); }
+        #processButton:disabled, #saveSimButton:disabled { background-color: #555; color: #888; cursor: not-allowed; }
+
+
+        #particleCanvas {
+            border: 1px solid #00001a; /* Very dark navy border */
+            background-color: #000026; /* Navy Blue for Canvas */
+            margin-top: 0;
+            box-shadow: 0 0 20px rgba(102,170,255,0.15);
+            display: block;
+            transition: width 0.3s ease, height 0.3s ease;
+        }
+
+        body.fullscreen-active #particleCanvas {
+            position: fixed; top: 0; left: 0;
+            width: 100vw !important; height: 100vh !important;
+            border: none; box-shadow: none; z-index: 1000; margin-top:0;
+        }
+
+        #statusMessage {
+            color: #66aaff; font-size: 1em; min-height: 1.5em;
+            text-align: center; margin-top: 10px; position: relative;
+        }
+        body.fullscreen-active #statusMessage {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%); background-color: rgba(0,0,26,0.7); /* Navy transparent */
+            padding: 5px 10px; border-radius: 5px; z-index: 1001;
+        }
+
+        #backButton {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 85, 204, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            line-height: 40px; /* Vertically center arrow */
+            text-align: center; /* Horizontally center arrow */
+            cursor: pointer;
+            z-index: 1002;
+            display: none;
+            /* display: flex; align-items: center; justify-content: center; */ /* Alternative centering if needed */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        #backButton:hover {
+            background-color: rgba(0, 68, 170, 0.9);
+        }
+
+         @media (min-width: 600px) {
+            #controls { flex-direction: row; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Atmospheric Cloud Simulator</h1>
+    </header>
+
+    <div id="controls-container">
+        <div id="controls">
+            <label class="file-input-wrapper">
+                Select Image
+                <input type="file" id="imageFile" accept="image/*">
+            </label>
+            <div class="button-group">
+                <button id="processButton" disabled>Simulate Clouds</button>
+                <button id="saveSimButton" disabled>Save Simulation</button>
+            </div>
+        </div>
+        <span id="fileName">No file selected.</span>
+        <div id="statusMessage"></div>
+    </div>
+    <button id="backButton" title="Exit Fullscreen (Esc)">&larr;</button> <canvas id="particleCanvas"></canvas>
+
+    <script>
+        // ALL JAVASCRIPT CODE FROM THE PREVIOUS CORRECT RESPONSE GOES HERE
+        // No changes to JavaScript are needed for this specific button overlap issue.
+        // The provided JavaScript from the prior step should be complete.
+        const imageFileInput = document.getElementById('imageFile');
+        const processButton = document.getElementById('processButton');
+        const saveSimButton = document.getElementById('saveSimButton');
+        const particleCanvas = document.getElementById('particleCanvas');
+        const statusMessage = document.getElementById('statusMessage');
+        const fileNameDisplay = document.getElementById('fileName');
+        const controlsContainer = document.getElementById('controls-container');
+        const headerElement = document.querySelector('header');
+        const bodyElement = document.body;
+        const backButton = document.getElementById('backButton');
+        const ctx = particleCanvas.getContext('2d');
+
+        let particles = [];
+        let particleInitialData = []; // For saving simulation
+        let sourceImage = null;
+        let sourceImageName = 'simulation';
+        let animationFrameId = null;
+        let isFullscreen = false;
+        let originalCanvasWidth, originalCanvasHeight;
+
+        const PARTICLE_COLORS = {
+            CLOUD: '255, 255, 255', // White
+            OVERSHOOT: '255, 165, 0' // Orange
+        };
+
+        class Particle {
+            constructor(params) { // Takes a parameter object
+                this.initialX = params.x;
+                this.initialY = params.y;
+                this.x = params.x + (Math.random() - 0.5) * 5;
+                this.y = params.y + (Math.random() - 0.5) * 5;
+                this.size = params.size || (Math.random() * 2.5 + 1.5);
+
+                this.targetOpacity = Math.min(0.7, Math.max(0.05, params.baseOpacityTarget));
+                this.opacity = 0;
+
+                this.vx = params.vx || (Math.random() - 0.5) * 0.18;
+                this.vy = params.vy || (Math.random() - 0.5) * 0.09;
+
+                this.initialLife = params.initialLife || (Math.random() * 600 + 500);
+                this.life = this.initialLife;
+
+                this.color = params.color || PARTICLE_COLORS.CLOUD;
+
+                this.opacityPulseSpeed = Math.random() * 0.003 + 0.001;
+                this.opacityPulseDirection = 1;
+                this.fadeInCompleteness = 0;
+                this.fadeInDuration = 60;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life--;
+
+                if (this.fadeInCompleteness < 1) {
+                    this.fadeInCompleteness += 1 / this.fadeInDuration;
+                    this.opacity = this.targetOpacity * Math.min(1, this.fadeInCompleteness);
+                } else {
+                    if (this.life < this.initialLife * 0.2) {
+                        this.opacity = this.targetOpacity * (this.life / (this.initialLife * 0.2));
+                    } else {
+                        this.opacity += this.opacityPulseSpeed * this.opacityPulseDirection;
+                        if (this.opacity > this.targetOpacity || this.opacity < this.targetOpacity * 0.4) {
+                            this.opacityPulseDirection *= -1;
+                        }
+                    }
+                }
+                this.opacity = Math.max(0, Math.min(this.targetOpacity, this.opacity));
+
+
+                if (particleCanvas.width > 0) {
+                    if (this.x > particleCanvas.width + this.size) this.x = -this.size;
+                    if (this.x < -this.size) this.x = particleCanvas.width + this.size;
+                    if (this.y > particleCanvas.height + this.size) this.y = -this.size;
+                    if (this.y < -this.size) this.y = particleCanvas.height + this.size;
+                }
+            }
+
+            draw() {
+                if (this.opacity <= 0.001 || this.life <= 0) return;
+                ctx.beginPath();
+                const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+                gradient.addColorStop(0, `rgba(${this.color}, ${this.opacity * 0.9})`);
+                gradient.addColorStop(0.4, `rgba(${this.color}, ${this.opacity * 0.6})`);
+                gradient.addColorStop(1, `rgba(${this.color}, 0)`);
+                ctx.fillStyle = gradient;
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function enterFullscreenMode() {
+            if (isFullscreen) return;
+            isFullscreen = true;
+            bodyElement.classList.add('fullscreen-active');
+            backButton.style.display = 'flex'; // Changed to flex for centering
+            saveSimButton.style.display = 'inline-block';
+            saveSimButton.disabled = particleInitialData.length === 0;
+
+            originalCanvasWidth = particleCanvas.width;
+            originalCanvasHeight = particleCanvas.height;
+
+            particleCanvas.width = window.innerWidth;
+            particleCanvas.height = window.innerHeight;
+            statusMessage.textContent = "Simulating... Press 'Esc' or Back Button to exit.";
+        }
+
+        function exitFullscreenMode() {
+            if (!isFullscreen) return;
+            isFullscreen = false;
+            bodyElement.classList.remove('fullscreen-active');
+            backButton.style.display = 'none';
+            saveSimButton.style.display = 'none';
+
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            particles = [];
+            particleInitialData = [];
+            if (particleCanvas.width > 0 && particleCanvas.height > 0) { // Check before clearing
+                 ctx.clearRect(0,0, particleCanvas.width, particleCanvas.height);
+            }
+
+
+            particleCanvas.width = originalCanvasWidth || defaultCanvasWidth;
+            particleCanvas.height = originalCanvasHeight || defaultCanvasHeight;
+
+            processButton.disabled = imageFileInput.files.length === 0;
+            statusMessage.textContent = 'Exited fullscreen. Select an image to simulate.';
+            fileNameDisplay.textContent = imageFileInput.files.length > 0 ? imageFileInput.files[0].name : 'No file selected.';
+        }
+
+
+        function analyzeImage(img) {
+            statusMessage.textContent = isFullscreen ? "Analyzing... 'Esc' or Back to exit." : 'Simulating...';
+            processButton.disabled = true;
+            particles = [];
+            particleInitialData = [];
+
+            const offscreenCanvas = document.createElement('canvas');
+            const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+            const canvasWidth = particleCanvas.width;
+            const canvasHeight = particleCanvas.height;
+            offscreenCanvas.width = canvasWidth;
+            offscreenCanvas.height = canvasHeight;
+
+            const imgAspectRatio = img.width / img.height;
+            const canvasAspectRatio = canvasWidth / canvasHeight;
+            let drawWidth, drawHeight, offsetX, offsetY;
+
+            if (imgAspectRatio > canvasAspectRatio) {
+                drawWidth = canvasWidth;
+                drawHeight = drawWidth / imgAspectRatio; offsetX = 0; offsetY = (canvasHeight - drawHeight) / 2;
+            } else {
+                drawHeight = canvasHeight;
+                drawWidth = drawHeight * imgAspectRatio; offsetY = 0; offsetX = (canvasWidth - drawWidth) / 2;
+            }
+
+            offscreenCtx.fillStyle = 'rgba(0,0,0,0)';
+            offscreenCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+            offscreenCtx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+            try {
+                const imageData = offscreenCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+                const data = imageData.data;
+
+                const OVERSHOOT_BRIGHTNESS_THRESHOLD = 245;
+                const CLOUD_BRIGHTNESS_THRESHOLD = 175;
+                const samplingRate = isFullscreen ? 2 : 1;
+
+                for (let y = 0; y < canvasHeight; y += samplingRate) {
+                    for (let x = 0; x < canvasWidth; x += samplingRate) {
+                        const index = (y * canvasWidth + x) * 4;
+                        const r = data[index];
+                        const g = data[index + 1];
+                        const b = data[index + 2];
+                        const a = data[index + 3];
+
+                        if (a < 20) continue;
+
+                        const brightness = (r + g + b) / 3;
+                        let particleColor = null;
+                        let isCloud = false;
+
+                        if (r > OVERSHOOT_BRIGHTNESS_THRESHOLD && g > OVERSHOOT_BRIGHTNESS_THRESHOLD && b > OVERSHOOT_BRIGHTNESS_THRESHOLD && brightness > OVERSHOOT_BRIGHTNESS_THRESHOLD -5) {
+                            particleColor = PARTICLE_COLORS.OVERSHOOT;
+                            isCloud = true;
+                        } else if (brightness > CLOUD_BRIGHTNESS_THRESHOLD && a > 70) {
+                            particleColor = PARTICLE_COLORS.CLOUD;
+                            isCloud = true;
+                        }
+
+                        if (isCloud) {
+                            const normalizedBrightness = (brightness - CLOUD_BRIGHTNESS_THRESHOLD) / (255 - CLOUD_BRIGHTNESS_THRESHOLD);
+                            const numParticlesToSpawn = 1 + Math.floor(normalizedBrightness * 1.2);
+
+                            for (let i = 0; i < numParticlesToSpawn; i++) {
+                                const currentParticle = new Particle({ // Create first to access its randomized values
+                                    x: x,
+                                    y: y,
+                                    baseOpacityTarget: normalizedBrightness * 0.35 + 0.05,
+                                    color: particleColor
+                                });
+                                particles.push(currentParticle);
+                                particleInitialData.push({
+                                    x: currentParticle.initialX,
+                                    y: currentParticle.initialY,
+                                    baseOpacityTarget: currentParticle.targetOpacity, // Use targetOpacity as it's derived from base
+                                    color: currentParticle.color,
+                                    vx: currentParticle.vx,
+                                    vy: currentParticle.vy,
+                                    size: currentParticle.size,
+                                    initialLife: currentParticle.initialLife,
+                                });
+                            }
+                        }
+                    }
+                }
+                statusMessage.textContent = isFullscreen ? `Sim complete: ${particles.length} particles. 'Esc' or Back to exit.` : `Sim complete: ${particles.length} particles.`;
+                if (particles.length === 0 && (canvasWidth > 0 && canvasHeight > 0)) {
+                     statusMessage.textContent += " No distinct cloud-like areas found.";
+                }
+                saveSimButton.disabled = particleInitialData.length === 0;
+
+            } catch (e) {
+                console.error("Error processing image data:", e);
+                statusMessage.textContent = "Error: Could not process image data.";
+                 saveSimButton.disabled = true;
+            } finally {
+                if (!isFullscreen) processButton.disabled = false;
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+            particles = particles.filter(p => p.life > 0);
+
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function generateSimulationHTML(pData, canvasW, canvasH, simTitle) {
+            const particleClassString = Particle.toString();
+
+            const pDataString = JSON.stringify(pData.map(p => ({
+                x: p.x,
+                y: p.y,
+                baseOpacityTarget: p.baseOpacityTarget, // This was p.targetOpacity, ensure consistency
+                color: p.color,
+                vx: p.vx,
+                vy: p.vy,
+                size: p.size,
+                initialLife: p.initialLife
+            })));
+
+            return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>${simTitle} - Cloud Simulation</title>
+    <style>
+        body { margin: 0; background-color: #000026; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        canvas { display: block; background-color: #000026; }
+    </style>
+</head>
+<body>
+    <canvas id="simCanvas"></canvas>
+    <script>
+        const PARTICLE_COLORS = { CLOUD: '255, 255, 255', OVERSHOOT: '255, 165, 0' };
+        (${particleClassString})();
+
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = ${canvasW};
+        canvas.height = ${canvasH};
+
+        let particles = [];
+        const particleInitialData = ${pDataString};
+
+        particleInitialData.forEach(params => {
+            particles.push(new Particle(params));
+        });
+
+        function animateSim() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animateSim);
+        }
+        if (particles.length > 0) animateSim();
+    <\/script>
+</body>
+</html>`;
+        }
+
+        saveSimButton.addEventListener('click', () => {
+            if (particleInitialData.length === 0) {
+                alert("No simulation data to save.");
+                return;
+            }
+            const simTitle = sourceImageName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'cloud_simulation';
+            const htmlContent = generateSimulationHTML(particleInitialData, particleCanvas.width, particleCanvas.height, simTitle);
+
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${simTitle}.html`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            statusMessage.textContent = "Simulation HTML generated for download.";
+        });
+
+        imageFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                sourceImageName = file.name;
+                fileNameDisplay.textContent = file.name;
+                statusMessage.textContent = 'Image selected. Ready to simulate.';
+                processButton.disabled = false;
+                saveSimButton.style.display = 'none';
+                saveSimButton.disabled = true;
+                if (isFullscreen) exitFullscreenMode();
+
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                particles = []; particleInitialData = [];
+                if (particleCanvas.width > 0 && particleCanvas.height > 0) {
+                    ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+                }
+            } else {
+                sourceImageName = 'simulation';
+                fileNameDisplay.textContent = 'No file selected.';
+                processButton.disabled = true;
+                saveSimButton.style.display = 'none';
+                statusMessage.textContent = '';
+            }
+        });
+
+        processButton.addEventListener('click', () => {
+            const file = imageFileInput.files[0];
+            if (!file) { statusMessage.textContent = "Please select an image file first."; return; }
+            statusMessage.textContent = "Preparing image...";
+            processButton.disabled = true;
+
+            sourceImage = new Image();
+            sourceImage.onload = () => {
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                enterFullscreenMode();
+                analyzeImage(sourceImage);
+                if (particles.length > 0) {
+                    animate();
+                } else if (isFullscreen) {
+                     statusMessage.textContent = "No cloud-like areas found. 'Esc' or Back to exit.";
+                } else {
+                     processButton.disabled = false;
+                }
+                saveSimButton.style.display = particleInitialData.length > 0 ? 'inline-block' : 'none';
+                saveSimButton.disabled = particleInitialData.length === 0;
+            };
+            sourceImage.onerror = () => {
+                console.error("Error processing selected file as image.");
+                statusMessage.textContent = "Error: Could not load selected file as image.";
+                processButton.disabled = false;
+                saveSimButton.style.display = 'none';
+                if (isFullscreen) exitFullscreenMode();
+            };
+            const reader = new FileReader();
+            reader.onload = (e) => { sourceImage.src = e.target.result; }
+            reader.readAsDataURL(file);
+        });
+
+        backButton.addEventListener('click', exitFullscreenMode);
+        window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && isFullscreen) exitFullscreenMode(); });
+
+        window.addEventListener('resize', () => {
+            if (isFullscreen) {
+                const oldWidth = particleCanvas.width;
+                const oldHeight = particleCanvas.height;
+                particleCanvas.width = window.innerWidth;
+                particleCanvas.height = window.innerHeight;
+
+                if (oldWidth > 0 && oldHeight > 0) { // Prevent division by zero
+                    const scaleX = particleCanvas.width / oldWidth;
+                    const scaleY = particleCanvas.height / oldHeight;
+                    particles.forEach(p => {
+                        p.x *= scaleX;
+                        p.y *= scaleY;
+                    });
+                    particleInitialData.forEach(p => { // Also scale initial data for consistency if re-saved
+                        p.x *= scaleX;
+                        p.y *= scaleY;
+                    });
+                }
+                statusMessage.textContent = "Resized. 'Esc' or Back to exit.";
+            }
+        });
+
+        const defaultCanvasWidth = Math.min(window.innerWidth * 0.9, 700);
+        const defaultCanvasHeight = Math.min(window.innerHeight * 0.4, 350);
+        particleCanvas.width = defaultCanvasWidth;
+        particleCanvas.height = defaultCanvasHeight;
+        originalCanvasWidth = defaultCanvasWidth;
+        originalCanvasHeight = defaultCanvasHeight;
+        statusMessage.textContent = 'Select an image and click "Simulate Clouds".';
+
+    </script>
+</body>
+</html>
