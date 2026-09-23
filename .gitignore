@@ -1,2 +1,13 @@
-.vscode*
+.DS_Store
 ._*
+**/._*
+.venv/
+__pycache__/
+*.py[cod]
+scraper.log
+html_cache/
+webcam_directory/
+UnParsed/
+omni_eye_df.csv
+video_embeds.csv
+raw_page_html.html
