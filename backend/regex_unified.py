@@ -1,10 +1,10 @@
 import re
+from html import escape
 import pandas as pd
 import requests
 import logging
 import time
 import os
-import random
 from rich import print as rprint
 from rich.progress import Progress
 from rich.table import Table
@@ -37,16 +37,7 @@ UNPARSED_DIR = 'UnParsed'
 MAX_LOG_LINES_DISPLAY = 70
 REQUEST_TIMEOUT_SECONDS = 20
 
-USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'VLC/3.0.20 LibVLC/3.0.20',
-    'Lavf/60.3.100',
-    'QuickTime/7.7.3 (qtver=7.7.3;os=Windows NT 6.1)',
-    'Windows-Media-Player/12.0.19041.3636'
-]
+USER_AGENT = 'StormOpsCloudCollector/1.0 (manual local CLI)'
 
 # Video platform patterns
 VIDEO_PATTERNS = [
@@ -54,13 +45,6 @@ VIDEO_PATTERNS = [
     r'<iframe[^>]+src="https?://player\.vimeo\.com/video/[^"]+"[^>]*></iframe>',  # Vimeo
     r'<iframe[^>]+src="https?://www\.dailymotion\.com/embed/video/[^"]+"[^>]*></iframe>',  # Dailymotion
 ]
-
-# Create directories
-for directory in [HTML_CACHE_DIR, WEBCAM_DIR, UNPARSED_DIR]:
-    if not os.path.exists(directory):
-        logger.debug(f"Creating directory: {directory}")
-        os.makedirs(directory)
-        logger.info(f"Created directory: {directory}")
 
 # Sanitize URL or name for filename
 def sanitize_for_filename(text):
@@ -73,9 +57,12 @@ def sanitize_for_filename(text):
     retry_on_exception=lambda e: isinstance(e, requests.exceptions.RequestException)
 )
 def fetch_html(url):
-    headers = {'User-Agent': random.choice(USER_AGENTS)}
-    logger.debug(f"Sending GET request to {url} with User-Agent: {headers['User-Agent']}")
-    response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS, headers=headers)
+    parsed = urlparse(url)
+    if parsed.scheme != 'https' or parsed.hostname not in {'webcamtaxi.com', 'www.webcamtaxi.com'}:
+        raise ValueError('Only HTTPS pages on webcamtaxi.com are supported by this collector.')
+    headers = {'User-Agent': USER_AGENT}
+    logger.debug(f"Sending GET request to {url}")
+    response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS, headers=headers, allow_redirects=False)
     response.raise_for_status()
     return response.text
 
@@ -85,9 +72,9 @@ def create_all_webcams_html(webcams):
     for webcam in webcams:
         cards += f"""
         <div class="card">
-            <h2>{webcam['Name']}</h2>
+            <h2>{escape(str(webcam.get('Name', 'Camera')))}</h2>
             <div class="video-container">
-                {webcam['Embed_Code']}
+                {sanitize_embed_code(webcam.get('Embed_Code', ''))}
             </div>
         </div>
         """
@@ -274,8 +261,29 @@ def extract_embed_code(html):
     for pattern in VIDEO_PATTERNS:
         match = re.search(pattern, html, re.IGNORECASE)
         if match:
-            return match.group(0)
+            src_match = re.search(r'''\bsrc\s*=\s*["'](https://[^"']+)["']''', match.group(0), re.IGNORECASE)
+            if src_match:
+                return sanitize_embed_code(src_match.group(0))
     return None
+
+
+def sanitize_embed_code(value):
+    """Rebuild an embed from an explicitly allowed HTTPS player URL."""
+    src_match = re.search(r'''(?:src\s*=\s*)?["']?(https://[^"'\s<>]+)''', str(value), re.IGNORECASE)
+    if not src_match:
+        return ''
+    src = src_match.group(1)
+    parsed = urlparse(src)
+    allowed_paths = {
+        'www.youtube.com': r'^/embed/[A-Za-z0-9_-]+$',
+        'player.vimeo.com': r'^/video/[0-9]+$',
+        'www.dailymotion.com': r'^/embed/video/[A-Za-z0-9]+$',
+    }
+    path_pattern = allowed_paths.get(parsed.hostname or '')
+    if parsed.scheme != 'https' or parsed.username or parsed.password or not path_pattern or not re.match(path_pattern, parsed.path):
+        return ''
+    safe_src = escape(src, quote=True)
+    return f'<iframe src="{safe_src}" title="Webcam video player" loading="lazy" referrerpolicy="no-referrer" allowfullscreen></iframe>'
 
 # Function from regex_slave.py: Process URLs and extract embeds
 def process_slave(urls_df, webcams, all_webcams_filename, progress, task_id):
@@ -348,7 +356,7 @@ def process_slave(urls_df, webcams, all_webcams_filename, progress, task_id):
             progress.update(sub_task, advance=1)
             time.sleep(RATE_LIMIT_SECONDS)
 
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, ValueError) as e:
             logger.error(f"Failed to fetch {url} after {MAX_RETRIES} attempts: {str(e)}")
             data.append({'URL': url, 'Name': name, 'Embed_Code': None})
             failed_urls += 1
@@ -373,7 +381,7 @@ def main():
 
     with Progress() as progress:
         # Process UnParsed folder
-        if os.path.exists(UNPARSED_DIR):
+        if os.path.exists(UNPARSED_DIR) and any(f.endswith('.html') for f in os.listdir(UNPARSED_DIR)):
             html_files = [f for f in os.listdir(UNPARSED_DIR) if f.endswith('.html')]
             logger.info(f"Found {len(html_files)} HTML files in {UNPARSED_DIR}")
 
@@ -477,10 +485,8 @@ def main():
     if not webcams:
         logger.warning("No valid webcams found to create the HTML file")
 
-    # Save final CSV
-    result_df = pd.DataFrame(all_data).drop_duplicates(subset=['URL'])
-    result_df.to_csv(OUTPUT_CSV, index=False)
-    logger.info(f"Final DataFrame saved to {OUTPUT_CSV}")
+    # process_slave persists each result; do not replace the accumulated CSV with
+    # only the URLs visited during this invocation.
 
     # Verify HTML file
     verification_results = [verify_html_file(all_webcams_filename)] if os.path.exists(all_webcams_filename) else []
@@ -517,4 +523,6 @@ def main():
     rprint(f"[green bold]✔ Processing complete! Data saved to {OUTPUT_CSV} and {all_webcams_filename}[/green bold]")
 
 if __name__ == "__main__":
+    for directory in [HTML_CACHE_DIR, WEBCAM_DIR]:
+        os.makedirs(directory, exist_ok=True)
     main()

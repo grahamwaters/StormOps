@@ -1,46 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Define directories for the front end (HTML/JavaScript) and back end (Python)
-frontend_dirs=(
-    "frontend"
-    "frontend/assets"
-    "frontend/css"
-    "frontend/js"
-)
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$repo_root"
 
-backend_dirs=(
-    "backend"
-    "backend/api"
-    "backend/models"
-    "backend/routes"
-)
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "Python 3 is required. Install Python 3 and run this script again." >&2
+  exit 1
+fi
 
-# Define files
-files=(
-    "frontend/index.html"
-    "frontend/css/style.css"
-    "frontend/js/app.js"
-    "backend/app.py"
-    "README.md"
-    ".gitignore"
-)
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 
-# Create front end directories
-for dir in "${frontend_dirs[@]}"; do
-    mkdir -p "$dir"
-    echo "Created front end directory: $dir"
-done
-
-# Create back end directories
-for dir in "${backend_dirs[@]}"; do
-    mkdir -p "$dir"
-    echo "Created back end directory: $dir"
-done
-
-# Create files
-for file in "${files[@]}"; do
-    touch "$file"
-    echo "Created file: $file"
-done
-
-echo "Setup complete!"
+echo "StormOps environment is ready."
+echo "Run the Cloud Lab: .venv/bin/python -m http.server 8000 --bind 127.0.0.1 --directory frontend"
+echo "Run the optional collector: .venv/bin/python backend/regex_unified.py"
